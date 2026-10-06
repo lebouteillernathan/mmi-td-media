@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Exercice 7</title>
+  </head>
+  <body>
+    <audio-video source="both" width="300"></audio-video>
+
+    <script>
+      class AudioVideoElement extends HTMLElement {
+        connectedCallback() {
+          const sourceType = this.getAttribute("source") || "video";
+          const widthAttr = this.getAttribute("width");
+
+          this.innerHTML = `
+                    <video id="player" ${widthAttr ? `width="${widthAttr}"` : ""} playsinline></video>
+                    <div>
+                        <button id="btn-start">Démarrer</button>
+                        <button id="btn-stop" disabled>Stopper</button>
+                    </div>
+                    <div id="controls-video" style="display:none;">
+                        <button id="btn-pause-video">Pause Vidéo</button>
+                        <button id="btn-fullscreen">Plein écran</button>
+                    </div>
+                    <div id="controls-audio" style="display:none;">
+                        <button id="btn-mute-audio">Mute Audio</button>
+                    </div>
+                    <div id="info"></div>
+                `;
+
+          const video = this.querySelector("#player");
+          const btnStart = this.querySelector("#btn-start");
+          const btnStop = this.querySelector("#btn-stop");
+          const btnPauseVideo = this.querySelector("#btn-pause-video");
+          const btnFullscreen = this.querySelector("#btn-fullscreen");
+          const btnMuteAudio = this.querySelector("#btn-mute-audio");
+          const controlsVideo = this.querySelector("#controls-video");
+          const controlsAudio = this.querySelector("#controls-audio");
+          const infoDiv = this.querySelector("#info");
+
+          btnStart.addEventListener("click", () => {
+            const constraints = {
+              audio: sourceType === "audio" || sourceType === "both",
+              video: sourceType === "video" || sourceType === "both",
+            };
+
+            navigator.mediaDevices
+              .getUserMedia(constraints)
+              .then((stream) => {
+                this.mediaStream = stream;
+                video.srcObject = stream;
+                video.onloadedmetadata = () => video.play();
+
+                if (stream.getVideoTracks().length > 0)
+                  controlsVideo.style.display = "block";
+                if (stream.getAudioTracks().length > 0)
+                  controlsAudio.style.display = "block";
+
+                btnStart.disabled = true;
+                btnStop.disabled = false;
+
+                infoDiv.innerHTML = "";
+                stream.getTracks().forEach((track) => {
+                  const p = document.createElement("p");
+                  p.textContent = `${track.kind}: ${track.label}`;
+                  infoDiv.appendChild(p);
+                });
+              })
+              .catch((err) => console.error(`${err.name}: ${err.message}`));
+          });
+
+          btnPauseVideo.addEventListener("click", () => {
+            if (video.paused) {
+              video.play();
+              btnPauseVideo.textContent = "Pause Vidéo";
+            } else {
+              video.pause();
+              btnPauseVideo.textContent = "Reprendre Vidéo";
+            }
+          });
+
+          btnMuteAudio.addEventListener("click", () => {
+            if (this.mediaStream) {
+              const track = this.mediaStream.getAudioTracks()[0];
+              if (track) {
+                track.enabled = !track.enabled;
+                btnMuteAudio.textContent = track.enabled
+                  ? "Mute Audio"
+                  : "Unmute Audio";
+              }
+            }
+          });
+
+          btnFullscreen.addEventListener("click", () => {
+            if (video.requestFullscreen) video.requestFullscreen();
+          });
+
+          btnStop.addEventListener("click", () => {
+            if (this.mediaStream) {
+              this.mediaStream.getTracks().forEach((track) => track.stop());
+              video.srcObject = null;
+              this.mediaStream = null;
+              btnStart.disabled = false;
+              btnStop.disabled = true;
+              controlsVideo.style.display = "none";
+              controlsAudio.style.display = "none";
+              infoDiv.innerHTML = "";
+            }
+          });
+        }
+      }
+
+      customElements.define("audio-video", AudioVideoElement);
+    </script>
+  </body>
+</html>
