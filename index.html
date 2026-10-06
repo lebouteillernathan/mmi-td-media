@@ -3,10 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Exercice 7</title>
+    <title>Exercice 9</title>
   </head>
   <body>
-    <audio-video source="both" width="300"></audio-video>
+    <audio-video source="video" width="300"></audio-video>
 
     <script>
       class AudioVideoElement extends HTMLElement {
@@ -19,6 +19,8 @@
                     <div>
                         <button id="btn-start">Démarrer</button>
                         <button id="btn-stop" disabled>Stopper</button>
+                        <button id="btn-take-photo" disabled>takePhoto()</button>
+                        <button id="btn-grab-frame" disabled>grabFrame()</button>
                     </div>
                     <div id="controls-video" style="display:none;">
                         <button id="btn-pause-video">Pause Vidéo</button>
@@ -28,17 +30,37 @@
                         <button id="btn-mute-audio">Mute Audio</button>
                     </div>
                     <div id="info"></div>
+
+                    <!-- Zone de rendu ImageCapture -->
+                    <div>
+                        <h3>takePhoto()</h3>
+                        <img id="photo-img" style="display:none; max-width:100%;" />
+                        <a id="download-photo" style="display:none;">Télécharger photo</a>
+
+                        <h3>grabFrame()</h3>
+                        <canvas id="frame-canvas" style="display:none; max-width:100%;"></canvas>
+                        <a id="download-frame" style="display:none;">Télécharger frame</a>
+                    </div>
                 `;
 
           const video = this.querySelector("#player");
           const btnStart = this.querySelector("#btn-start");
           const btnStop = this.querySelector("#btn-stop");
+          const btnTakePhoto = this.querySelector("#btn-take-photo");
+          const btnGrabFrame = this.querySelector("#btn-grab-frame");
           const btnPauseVideo = this.querySelector("#btn-pause-video");
           const btnFullscreen = this.querySelector("#btn-fullscreen");
           const btnMuteAudio = this.querySelector("#btn-mute-audio");
           const controlsVideo = this.querySelector("#controls-video");
           const controlsAudio = this.querySelector("#controls-audio");
           const infoDiv = this.querySelector("#info");
+
+          const photoImg = this.querySelector("#photo-img");
+          const downloadPhoto = this.querySelector("#download-photo");
+          const frameCanvas = this.querySelector("#frame-canvas");
+          const downloadFrame = this.querySelector("#download-frame");
+
+          let imageCapture = null;
 
           btnStart.addEventListener("click", () => {
             const constraints = {
@@ -53,6 +75,11 @@
                 video.srcObject = stream;
                 video.onloadedmetadata = () => video.play();
 
+                const videoTrack = stream.getVideoTracks()[0];
+                if (videoTrack && "ImageCapture" in window) {
+                  imageCapture = new ImageCapture(videoTrack);
+                }
+
                 if (stream.getVideoTracks().length > 0)
                   controlsVideo.style.display = "block";
                 if (stream.getAudioTracks().length > 0)
@@ -60,6 +87,8 @@
 
                 btnStart.disabled = true;
                 btnStop.disabled = false;
+                btnTakePhoto.disabled = !imageCapture;
+                btnGrabFrame.disabled = !imageCapture;
 
                 infoDiv.innerHTML = "";
                 stream.getTracks().forEach((track) => {
@@ -69,6 +98,42 @@
                 });
               })
               .catch((err) => console.error(`${err.name}: ${err.message}`));
+          });
+
+          btnTakePhoto.addEventListener("click", () => {
+            if (!imageCapture) return;
+
+            imageCapture
+              .takePhoto()
+              .then((blob) => {
+                const url = URL.createObjectURL(blob);
+                photoImg.src = url;
+                photoImg.style.display = "block";
+
+                downloadPhoto.href = url;
+                downloadPhoto.download = "photo.png";
+                downloadPhoto.style.display = "inline";
+              })
+              .catch((err) => console.error(err));
+          });
+
+          btnGrabFrame.addEventListener("click", () => {
+            if (!imageCapture) return;
+
+            imageCapture
+              .grabFrame()
+              .then((imageBitmap) => {
+                frameCanvas.width = imageBitmap.width;
+                frameCanvas.height = imageBitmap.height;
+                frameCanvas.getContext("2d").drawImage(imageBitmap, 0, 0);
+                frameCanvas.style.display = "block";
+
+                const dataUrl = frameCanvas.toDataURL("image/png");
+                downloadFrame.href = dataUrl;
+                downloadFrame.download = "frame.png";
+                downloadFrame.style.display = "inline";
+              })
+              .catch((err) => console.error(err));
           });
 
           btnPauseVideo.addEventListener("click", () => {
@@ -102,8 +167,12 @@
               this.mediaStream.getTracks().forEach((track) => track.stop());
               video.srcObject = null;
               this.mediaStream = null;
+              imageCapture = null;
+
               btnStart.disabled = false;
               btnStop.disabled = true;
+              btnTakePhoto.disabled = true;
+              btnGrabFrame.disabled = true;
               controlsVideo.style.display = "none";
               controlsAudio.style.display = "none";
               infoDiv.innerHTML = "";
